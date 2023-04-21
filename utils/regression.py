@@ -2,13 +2,13 @@ from pycaret.regression import *
 import streamlit as st
 
 @st.cache_resource
-def prep_and_train_regr(target,data, models,
+def prep_and_train_regr(target,_data, models,
                        train_sizes, data_split_stratify, 
                        fold_strategy, fold, numeric_imputation,
                        normalize,normalize_methods,feature_selection,feature_selection_method,
                        remove_multicollinearity,multicollinearity_threshold, remove_outliers
                        ):
-    regr = setup(data=data, 
+    regr = setup(data=_data, 
                 target=target,  
                 train_size=train_sizes, 
                 data_split_stratify=data_split_stratify, 

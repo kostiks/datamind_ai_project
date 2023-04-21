@@ -5,10 +5,35 @@ from streamlit_option_menu import option_menu
 import pandas as pd
 from utils.classification import tuning_clf
 from utils.plot_clf import plot_graph_clf
+from utils.get_profile import get_profile
+from streamlit_pandas_profiling import st_profile_report
+from datetime import datetime
 
 
 def pretrain_clf(classif_dictionary):
         with st.container():
+            with st.expander('Dataset'):
+                    try:
+                        st.dataframe(st.session_state.df)
+                    except AttributeError:
+                        pass
+            with st.expander('Dataset main report'):
+                if st.checkbox('Huge Dataset'):
+                    speedup = 'data/config_minimal.yaml'
+                else:
+                    speedup= 'data/config_default.yaml'
+                try:
+                    st.session_state.df
+                except AttributeError:
+                    st.warning('Please Load Dataset')
+                if st.button('Generate report'):
+                    try:
+                        report = get_profile(st.session_state.df, speedup)
+                        export=report.to_html()
+                        st.download_button(label="Download Full Report", data=export, file_name=f'report-{datetime.now().strftime("%Y_%m_%d")}.html')
+                        st_profile_report(report)
+                    except NameError:
+                        st.error('Please upload dataset first')
             col1, col2 = st.columns([3,1.5])
             with col2:
                 st.subheader('Choose Parameters', anchor=False)
@@ -19,33 +44,41 @@ def pretrain_clf(classif_dictionary):
                 with st.expander('Params'):
                     st.session_state.model_clf = st.multiselect('Choose model',
                                             ['lr','ridge','lda','et','nb','qda','rf','gbc','lightgbm','catboost','ada','dt','knn','dummy','svm'],
-                                            help='Blablabla', format_func=lambda x: classif_dictionary.get(x))
-                    train_size = st.number_input('Training Size:', value=0.7)
-                    data_split_stratify = st.checkbox("Controls Stratification during Split", value=False)
-                    fold_strategy = st.selectbox('Choice of Cross Validation Strategy',options=['kfold','stratifiedkfold'])
-                    fold = st.number_input('Number of Folds to be Used in Cross Validation',min_value=2,value=10)
+                                            help='''Here you can choose what **model** of Maсhine learning to use.  
+                                                    If you want to train all models at once, leave this field blank.''', format_func=lambda x: classif_dictionary.get(x))
+                    
+                    train_size = st.number_input('Training Size:', value=0.7, help= 'Proportion of the dataset to be used for training and validation. Should be between 0.0 and 1.0.')
+                    
+                    data_split_stratify = st.checkbox("Controls Stratification during Split", value=False, help='Controls stratification during "train_test_split". When set to True, will stratify by target column.')
+
+                    fold_strategy = st.selectbox('Choice of Cross Validation Strategy',options=['kfold','stratifiedkfold'], help='Choice of cross validation strategy.')
+
+                    fold = st.number_input('Number of Folds to be Used in Cross Validation',min_value=2,value=10, help='''Number of folds to be used in cross validation. Must be at least 2. 
+                                                                                                                          Increasing this value **improves** the performance of the trained models, but also takes **longer** time to train.''')
+
                 with st.expander('Inputation and Normalisation'):
-                    numeric_imputation = st.selectbox('Missing Value for Numeric Columns', options=['mean','median','mode'])
-                    # select numberical features preprocessing
-                    normalize = st.checkbox('Normalization', value=False)
+
+                    numeric_imputation = st.selectbox('Missing Value for Numeric Columns', options=['mean','median','mode'], help='Imputing strategy for numerical columns.')
+
+                    normalize = st.checkbox('Normalization', value=False, help='When set to True, it transforms the features by scaling them to a given range.')
+
                     normalize_method = 'zscore'
                     if normalize:
-                        normalize_method = st.selectbox('Method to be used for Normalization',options=['zscore','minmax','maxabs','robust'])
-                    fix_imbalance = st.checkbox('Fix Imbalance of Target Classes',value=False)    
+                        normalize_method = st.selectbox('Method to be used for Normalization',options=['zscore','minmax','maxabs','robust'], help='Defines the method for scaling. By default, normalize method is set to "zscore" The standard zscore is calculated as z = (x - u) / s.')
+
+                    fix_imbalance = st.checkbox('Fix Imbalance of Target Classes',value=False, help='Fixes uneven distribution of class values during training')
+
                 with st.expander('Feature selection'):
-                    feature_selection = st.checkbox('Select a Subset of Features Using a Combination of various Permutation Importance', value=False)
+                    feature_selection = st.checkbox('Select a Subset of Features Using a Combination of various Permutation Importance', value=False, help='When set to True, a subset of features is selected based on a feature importance score')
+
                     feature_selection_method = 'classic'
                     if feature_selection:
-                        feature_selection_method= st.selectbox('Algorithm for feature selection',options=['classic','univariate','sequential'])
-                    remove_multicollinearity = st.checkbox('Remove Highly Linearly Correlated Features', value=False)
+                        feature_selection_method= st.selectbox('Algorithm for feature selection',options=['classic','univariate','sequential'], help='Algorithm for feature selection')
+                    remove_multicollinearity = st.checkbox('Remove Highly Linearly Correlated Features', value=False, help='When set to True, features with the inter-correlations higher than the defined threshold are removed. For each group, it removes all except the feature with the highest correlation to y.')
                     multicollinearity_threshold = 0.9
                     if remove_multicollinearity:
-                        multicollinearity_threshold = st.number_input('Threshold Used for Dropping the Correlated Features', min_value=0.0, value=0.9)
-                with col1.expander('Dataset'):
-                    try:
-                        st.dataframe(st.session_state.df)
-                    except AttributeError:
-                        pass               
+                        multicollinearity_threshold = st.number_input('Threshold Used for Dropping the Correlated Features', min_value=0.0, value=0.9, help='Minimum absolute Pearson correlation to identify correlated features. The default value removes equal columns.')
+
                 if st.button('Try model'):
                     try:
                             st.session_state.best_clf = None
@@ -85,7 +118,7 @@ def pretrain_clf(classif_dictionary):
                 st.subheader('Choose parameters for plots')
                 st.session_state.plot_params_clf = st.multiselect('Choose model',
                                             ['pr','auc','threshold','confusion_matrix','rfe'],max_selections=3,
-                                            help='Blablabla')
+                                            help='Select plots to build for detailed analysis of the model')
                 if st.button('Plot'):
                     with col1:
                         plot_graph_clf(st.session_state.best_clf, st.session_state.plot_params_clf) 
@@ -101,9 +134,9 @@ def tunalyse_clf():
     with col2:
         option = st.selectbox(
         'Choose the tuning engine',
-        ('scikit-learn', 'optuna', 'scikit-optimize'))
-        optimizer = st.selectbox('Choose metric to optimizee', ('Accuracy','AUC','F1'))
-        st.session_state.iters_clf = st.slider('n_estimators', 5, 20, 5, 1)  
+        ('scikit-learn', 'optuna', 'scikit-optimize'), help='The search library used for tuning hyperparameters.')
+        optimizer = st.selectbox('Choose metric to optimizee', ('Accuracy','AUC','F1'), help='Metric name to be evaluated for hyperparameter tuning.')
+        st.session_state.iters_clf = st.slider('n_estimators', 5, 20, 5, 1, help='Number of iterations in the grid search. Increasing "n_iter" may improve model performance but also increases the training time.')  
         if st.button('Tune'):
             # clf1 = setup(data = st.session_state.df, target = st.session_state.targ_clf, session_id=1)
             st.session_state.tuned_dt_clf = tuning_clf(model=st.session_state.best_clf,n_iters=st.session_state.iters_clf,search_lib=option,opti=optimizer)
@@ -120,14 +153,14 @@ def tunalyse_clf():
 
 def predict():
     try:
-        holdout_pred = pred_clf(st.session_state.best_clf)
+        st.session_state.holdout_pred = pred_clf(st.session_state.best_clf)
     except AttributeError:
         st.warning('Teach model first')
     file_res = st.file_uploader("Upload Your Datasetss")
     if file_res: 
         test_df = pd.read_csv(file_res, index_col=None)
     if st.button('predict on test data'):
-        st.dataframe(holdout_pred)
+        st.dataframe(st.session_state.holdout_pred)
     if st.button('predict for result'):
         try:
             result_pred = pred_clf(st.session_state.best_clf, data=test_df)
